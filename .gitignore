@@ -1,0 +1,6 @@
+node_modules/
+dist/
+nextcloud-open-local.zip
+*.log
+__pycache__/
+.claude/
