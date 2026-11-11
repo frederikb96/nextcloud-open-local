@@ -12,8 +12,8 @@ Browser extension that opens the Nextcloud file you are looking at in your local
 </tr>
 </table>
 
-[![CI](https://github.com/frederikb96/nextcloud-open-local/actions/workflows/ci.yaml/badge.svg)](https://github.com/frederikb96/nextcloud-open-local/actions/workflows/ci.yaml)
-[![Release](https://img.shields.io/github/v/release/frederikb96/nextcloud-open-local)](https://github.com/frederikb96/nextcloud-open-local/releases)
+[![CI](https://github.com/frederikberg/nextcloud-open-local/actions/workflows/ci.yaml/badge.svg)](https://github.com/frederikberg/nextcloud-open-local/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/frederikberg/nextcloud-open-local)](https://github.com/frederikberg/nextcloud-open-local/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 You are looking at a document in Nextcloud's web interface and want it in LibreOffice, a code editor or whatever your system uses for that file type. Press the toolbar button or `Alt+Shift+O`, and the file opens from the copy the Nextcloud desktop client already keeps in sync, so saving it there uploads it the usual way. When there is no local copy, a notification says so. From a web editor the tab goes back to the folder view first, so the editor's lock on the file is released and the local copy opens writable.
@@ -43,7 +43,7 @@ The extension turns the file shown in the page into its path in Nextcloud, using
 
 ## Install
 
-Download `nextcloud-open-local.zip` and `nextcloud_open_local.py` from the [latest release](https://github.com/frederikb96/nextcloud-open-local/releases/latest). Register the opener with your browsers, then load the unzipped extension:
+Download `nextcloud-open-local.zip` and `nextcloud_open_local.py` from the [latest release](https://github.com/frederikberg/nextcloud-open-local/releases/latest). Register the opener with your browsers, then load the unzipped extension:
 
 ```sh
 python3 nextcloud_open_local.py --install
