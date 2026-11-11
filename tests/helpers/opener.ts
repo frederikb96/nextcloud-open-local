@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { OpenReply } from '../../src/protocol.ts';
+import type { OpenProgress, OpenReply } from '../../src/protocol.ts';
 
 export const OPENER = resolve(import.meta.dir, '..', '..', 'opener', 'nextcloud_open_local.py');
 const FIXTURE = resolve(import.meta.dir, '..', 'fixtures', 'nextcloud.cfg');
@@ -43,7 +43,10 @@ export function touch(path: string) {
 }
 
 /** Speaks the native messaging framing to the opener, like the browser does. */
-export async function ask(request: unknown, env: Record<string, string>): Promise<OpenReply> {
+export async function askAll(
+  request: unknown,
+  env: Record<string, string>,
+): Promise<Array<OpenReply | OpenProgress>> {
   const body = Buffer.from(JSON.stringify(request));
   const frame = Buffer.alloc(4 + body.length);
   frame.writeUInt32LE(body.length, 0);
@@ -56,5 +59,16 @@ export async function ask(request: unknown, env: Record<string, string>): Promis
   });
   const out = Buffer.from(await new Response(proc.stdout).arrayBuffer());
   await proc.exited;
-  return JSON.parse(out.subarray(4, 4 + out.readUInt32LE(0)).toString('utf8'));
+  const messages: Array<OpenReply | OpenProgress> = [];
+  for (let at = 0; at < out.length; ) {
+    const length = out.readUInt32LE(at);
+    messages.push(JSON.parse(out.subarray(at + 4, at + 4 + length).toString('utf8')));
+    at += 4 + length;
+  }
+  return messages;
+}
+
+/** The opener's final answer. */
+export async function ask(request: unknown, env: Record<string, string>): Promise<OpenReply> {
+  return (await askAll(request, env)).at(-1) as OpenReply;
 }

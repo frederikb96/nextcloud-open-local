@@ -3,14 +3,17 @@
 
 Started by the browser through native messaging: reads one request (Nextcloud server, user and
 the file's path in Nextcloud), finds the same file in the folder the Nextcloud desktop client keeps
-in sync, and hands it to the system's default application. Standard library only.
+in sync, and hands it to the system's default application. A request that left a web editor waits
+first, while the synced copy is read-only because the editor's lock is still being released, and
+reports that wait before its final answer. Standard library only.
 
     nextcloud_open_local.py --install [--extension-id ID]   register with the browsers (no root)
     nextcloud_open_local.py --uninstall                     remove those registrations
 
 Environment overrides (mainly for tests):
-    NEXTCLOUD_OPEN_LOCAL_CONFIG  path of the desktop client's nextcloud.cfg
-    NEXTCLOUD_OPEN_LOCAL_OPENER  command that receives the file path, instead of xdg-open / open
+    NEXTCLOUD_OPEN_LOCAL_CONFIG     path of the desktop client's nextcloud.cfg
+    NEXTCLOUD_OPEN_LOCAL_LOCK_WAIT  seconds to wait for a read-only file to become writable
+    NEXTCLOUD_OPEN_LOCAL_OPENER     command that receives the file path, instead of xdg-open / open
 """
 
 import argparse
@@ -21,6 +24,7 @@ import shlex
 import struct
 import subprocess
 import sys
+import time
 from configparser import ConfigParser
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -30,6 +34,10 @@ EXTENSION_ID = "ablhojhpkljeiigebanfocmgfnmohdch"
 
 # Files a desktop launcher would run rather than show.
 REFUSED_SUFFIXES = {".desktop", ".appimage", ".run", ".exe", ".msi", ".jar", ".bat", ".cmd"}
+
+# How long a request that left a web editor waits for the synced copy to become writable.
+DEFAULT_LOCK_WAIT_SECONDS = 60
+POLL_SECONDS = 0.5
 
 # Relative to the home directory: where each browser looks for native messaging hosts.
 BROWSER_HOST_DIRS = {
@@ -151,6 +159,28 @@ def check_local_file(local):
     )
 
 
+def is_writable(local):
+    """The desktop client clears the write bits of a file that is locked on the server."""
+    return bool(local.stat().st_mode & 0o222)
+
+
+def wait_until_writable(local, progress):
+    """Waits for a locked file to become writable; False when the wait ran out."""
+    if is_writable(local):
+        return True
+    progress(f"Waiting for Nextcloud to release the lock on {local.name}.")
+    try:
+        limit = float(os.environ.get("NEXTCLOUD_OPEN_LOCAL_LOCK_WAIT", DEFAULT_LOCK_WAIT_SECONDS))
+    except ValueError:
+        limit = DEFAULT_LOCK_WAIT_SECONDS
+    deadline = time.monotonic() + limit
+    while time.monotonic() < deadline:
+        time.sleep(POLL_SECONDS)
+        if is_writable(local):
+            return True
+    return False
+
+
 def opener_command(local):
     override = os.environ.get("NEXTCLOUD_OPEN_LOCAL_OPENER")
     if override:
@@ -178,7 +208,7 @@ def launch(local):
         raise OpenError("launch-failed", f"{command[0]} exited with status {code}.")
 
 
-def handle(request):
+def handle(request, progress):
     for field in ("origin", "user", "path"):
         if not isinstance(request.get(field), str) or not request[field]:
             raise OpenError("bad-request", f"Missing {field} in request.")
@@ -187,8 +217,18 @@ def handle(request):
         raise OpenError("no-client-config", "Found no Nextcloud desktop client configuration.")
     local = local_path_for(read_accounts(config), request["origin"], request["user"], request["path"])
     check_local_file(local)
+    writable = True
+    if request.get("waitForWritable") is True:
+        writable = wait_until_writable(local, progress)
     launch(local)
-    return {"ok": True, "localPath": str(local)}
+    reply = {"ok": True, "localPath": str(local)}
+    if not writable:
+        reply["readOnly"] = True
+        reply["message"] = (
+            f"{local.name} opened read-only: Nextcloud still has it locked, most likely by a web "
+            "editor that is open elsewhere. The desktop client makes it writable again once the lock is gone."
+        )
+    return reply
 
 
 def read_message(stream):
@@ -205,12 +245,16 @@ def write_message(stream, message):
     stream.flush()
 
 
+def report_waiting(message):
+    write_message(sys.stdout.buffer, {"status": "waiting", "message": message})
+
+
 def serve():
     request = read_message(sys.stdin.buffer)
     if request is None:
         return
     try:
-        reply = handle(request)
+        reply = handle(request, report_waiting)
     except OpenError as error:
         reply = {"ok": False, "code": error.code, "message": error.message}
     except Exception as error:  # the browser must always get an answer

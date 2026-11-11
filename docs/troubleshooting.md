@@ -29,6 +29,22 @@ The browser could not start the opener. Run `--install` again, as described in t
 browser that runs in a sandbox, such as a flatpak, cannot start a program outside it; the opener
 needs a browser installed the usual way.
 
+## Waiting and read-only
+
+### A notification says Nextcloud has to release a lock
+
+A web editor locks the file in Nextcloud while it is open, and the desktop client then marks the
+synced copy read-only. The extension has left the editor, and the opener waits for the copy to
+become writable. The application opens by itself, usually within a few seconds.
+
+### The file opened read-only
+
+The copy was still read-only after the wait. Another browser, another person or another tab
+still has the file open in a web editor. Close that editor; the desktop client makes the copy
+writable at its next sync, and opening it again from the browser then works as usual. If the tab
+change is unwanted, the extension's options page turns it off, and the file then opens read-only
+whenever the editor that is still open holds the lock.
+
 ## From the opener
 
 ### `no-client-config`

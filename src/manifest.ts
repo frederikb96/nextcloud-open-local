@@ -16,6 +16,7 @@ export function buildManifest(version: string) {
         description: 'Open the current Nextcloud file locally',
       },
     },
+    options_ui: { page: 'options.html', open_in_tab: false },
     background: { service_worker: 'service-worker.js', type: 'module' },
     permissions: ['activeTab', 'scripting', 'nativeMessaging', 'notifications', 'storage'],
   };

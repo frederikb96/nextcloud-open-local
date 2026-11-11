@@ -9,6 +9,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -55,6 +56,7 @@ const FILES: Record<string, string> = {
   '101': '/Docs/Quarterly Report.docx',
   '102': '/Docs/not-synced-yet.docx',
   '103': '/Moved/Elsewhere.odt',
+  '104': '/Docs/Locked.docx',
 };
 
 const PAGE = `<!doctype html><html><head data-user="bob" data-requesttoken="${TOKEN}"><title>Files</title></head><body>files</body></html>`;
@@ -117,8 +119,13 @@ async function clickOn(pageUrl: string) {
   const result = await waitFor('the outcome', () =>
     worker.evaluate(async () => (await chrome.storage.session.get('lastResult')).lastResult),
   );
+  await page.waitForLoadState('load');
+  const finalUrl = page.url();
   await page.close();
-  return result as { ok: boolean; path?: string; localPath?: string; message?: string };
+  return {
+    ...(result as { ok: boolean; path?: string; localPath?: string; message?: string }),
+    finalUrl,
+  };
 }
 
 const available = existsSync(executable);
@@ -141,6 +148,7 @@ beforeAll(async () => {
   sandbox = makeSandbox();
   touch(join(sandbox.home, 'Nextcloud/Docs/Quarterly Report.docx'));
   touch(join(sandbox.home, 'Nextcloud/Moved/Elsewhere.odt'));
+  touch(join(sandbox.home, 'Nextcloud/Docs/Locked.docx'));
 
   const tls = selfSignedCert(tmp);
   server = Bun.serve({
@@ -193,6 +201,7 @@ beforeAll(async () => {
     env: {
       PATH: process.env.PATH ?? '',
       HOME: process.env.HOME ?? '',
+      NEXTCLOUD_OPEN_LOCAL_LOCK_WAIT: '20',
       ...sandbox.env,
     },
     args: [
@@ -227,7 +236,11 @@ describe.skipIf(!available)('extension in Chromium', () => {
     seen.length = 0;
     const result = await clickOn(fileUrl('101', '/Docs'));
     const expected = join(sandbox.home, 'Nextcloud/Docs/Quarterly Report.docx');
-    expect(result).toEqual({ ok: true, path: '/Docs/Quarterly Report.docx', localPath: expected });
+    expect(result).toMatchObject({
+      ok: true,
+      path: '/Docs/Quarterly Report.docx',
+      localPath: expected,
+    });
     await waitFor('the launcher call', () => existsSync(sandbox.opened));
     expect(readFileSync(sandbox.opened, 'utf8').trim().split('\n').pop()).toBe(expected);
     const dav = seen.filter((r) => r.method !== 'GET');
@@ -256,5 +269,48 @@ describe.skipIf(!available)('extension in Chromium', () => {
   test('click: a page without a selected file only reports', async () => {
     const result = await clickOn(`https://${HOST}/apps/files/files?dir=/Docs`);
     expect(result.ok).toBe(false);
+  });
+
+  test('click in a web editor: the tab returns to the folder view before the file opens', async () => {
+    const result = await clickOn(fileUrl('101', '/Docs'));
+    expect(result.ok).toBe(true);
+    expect(result.finalUrl).toBe(`https://${HOST}/apps/files/files/101?dir=%2FDocs`);
+  });
+
+  test('click on a plain listing: the tab stays', async () => {
+    const url = `https://${HOST}/apps/files/files/101?dir=%2FDocs`;
+    const result = await clickOn(url);
+    expect(result.ok).toBe(true);
+    expect(result.finalUrl).toBe(url);
+  });
+
+  test('click with the option off: the editor page stays', async () => {
+    await worker.evaluate(() => chrome.storage.local.set({ settings: { leaveEditor: false } }));
+    try {
+      const url = fileUrl('101', '/Docs');
+      const result = await clickOn(url);
+      expect(result.ok).toBe(true);
+      expect(result.finalUrl).toBe(url);
+    } finally {
+      await worker.evaluate(() => chrome.storage.local.remove('settings'));
+    }
+  });
+
+  test('click in a web editor on a locked copy: the app opens once the lock is released', async () => {
+    const file = join(sandbox.home, 'Nextcloud/Docs/Locked.docx');
+    chmodSync(file, 0o444);
+    const before = readFileSync(sandbox.opened, 'utf8');
+    const release = setTimeout(() => chmodSync(file, 0o644), 1500);
+    try {
+      const started = Date.now();
+      const result = await clickOn(fileUrl('104', '/Docs'));
+      expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
+      expect(result).toMatchObject({ ok: true, localPath: file });
+      expect(result).not.toHaveProperty('notice');
+      expect(readFileSync(sandbox.opened, 'utf8').slice(before.length).trim()).toBe(file);
+    } finally {
+      clearTimeout(release);
+      chmodSync(file, 0o644);
+    }
   });
 });

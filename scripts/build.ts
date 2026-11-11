@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/** Bundles the extension into dist/: service worker, manifest and icons. */
+/** Bundles the extension into dist/: service worker, options page, manifest and icons. */
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
@@ -13,7 +13,10 @@ rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
 const result = await Bun.build({
-  entrypoints: [join(root, 'src/extension/service-worker.ts')],
+  entrypoints: [
+    join(root, 'src/extension/service-worker.ts'),
+    join(root, 'src/options/options.ts'),
+  ],
   outdir: dist,
   target: 'browser',
   format: 'esm',
@@ -25,6 +28,7 @@ if (!result.success) {
 }
 
 cpSync(join(root, 'icons'), join(dist, 'icons'), { recursive: true });
+cpSync(join(root, 'src/options/options.html'), join(dist, 'options.html'));
 writeFileSync(
   join(dist, 'manifest.json'),
   `${JSON.stringify(buildManifest(pkg.version), null, 2)}\n`,
