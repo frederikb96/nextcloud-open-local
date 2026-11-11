@@ -2,7 +2,7 @@
 
 The extension and the local opener are two separate pieces, and both are needed: the extension
 finds the file in Nextcloud, the opener starts the application. Both come from the
-[latest release](https://github.com/frederikb96/nextcloud-open-local/releases/latest), or from a
+[latest release](https://github.com/frederikberg/nextcloud-open-local/releases/latest), or from a
 checkout of this repository.
 
 ## 1. The opener
