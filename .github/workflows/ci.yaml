@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Build
+        id: build
+        shell: bash
+        run: bun run build 2>&1 | tee build.log
+      - name: Build errors
+        if: failure() && steps.build.outcome == 'failure'
+        run: grep -iE 'error|failed' build.log || true
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Lint
+        run: bun run lint
+      - name: Unit tests
+        run: bun run test
+      - name: Release state
+        run: bun run scripts/release.ts check
+      - name: Package
+        run: |
+          bun run package
+          unzip -Z1 nextcloud-open-local.zip | grep -qx manifest.json
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Install Chromium
+        run: bunx playwright-core install --with-deps chromium
+      - name: Browser test
+        run: bun run test:e2e
+
+  validation:
+    name: Validation
+    needs: [check, e2e]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac

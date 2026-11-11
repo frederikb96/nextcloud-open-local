@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Version guard
+        run: bun run scripts/release.ts check "$GITHUB_REF_NAME"
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Lint
+        run: bun run lint
+      - name: Unit tests
+        run: bun run test
+      - name: Install Chromium
+        run: bunx playwright-core install --with-deps chromium
+      - name: Browser test
+        run: bun run test:e2e
+      - name: Package
+        run: bun run package
+      - name: Release notes
+        run: bun run scripts/release.ts notes "$GITHUB_REF_NAME" > release-notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" $prerelease \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            nextcloud-open-local.zip opener/nextcloud_open_local.py
