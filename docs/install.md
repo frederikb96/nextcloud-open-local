@@ -42,6 +42,12 @@ allows a copy that was built with another key instead.
 The shortcut is `Alt+Shift+O`. If another extension or the browser already holds it, set one at
 `chrome://extensions/shortcuts` (`edge://extensions/shortcuts`).
 
+## Option
+
+The extension's options page (its card on the extensions page, *Details*, *Extension options*)
+has one switch, *Leave the web editor after opening locally*, on by default. See
+[how it works](how-it-works.md) for what it does.
+
 ## Check it
 
 Open a file in the Files app, or open it in an editor, and press the toolbar button. The file

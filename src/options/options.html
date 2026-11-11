@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nextcloud Open Locally</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; max-width: 460px; }
+      label { display: flex; gap: 8px; align-items: flex-start; }
+      p { color: #555; margin: 8px 0 0 24px; }
+    </style>
+  </head>
+  <body>
+    <label>
+      <input id="leave-editor" type="checkbox" />
+      <span>Leave the web editor after opening locally</span>
+    </label>
+    <p>
+      A web editor locks the file in Nextcloud while it is open, which makes the synced copy
+      read-only. With this on, the tab returns to the folder view and the local application opens
+      once the copy is writable.
+    </p>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

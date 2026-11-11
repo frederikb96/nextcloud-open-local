@@ -16,7 +16,7 @@ Browser extension that opens the Nextcloud file you are looking at in your local
 [![Release](https://img.shields.io/github/v/release/frederikb96/nextcloud-open-local)](https://github.com/frederikb96/nextcloud-open-local/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-You are looking at a document in Nextcloud's web interface and want it in LibreOffice, a code editor or whatever your system uses for that file type. Press the toolbar button or `Alt+Shift+O`, and the file opens from the copy the Nextcloud desktop client already keeps in sync, so saving it there uploads it the usual way. When there is no local copy, a notification says so.
+You are looking at a document in Nextcloud's web interface and want it in LibreOffice, a code editor or whatever your system uses for that file type. Press the toolbar button or `Alt+Shift+O`, and the file opens from the copy the Nextcloud desktop client already keeps in sync, so saving it there uploads it the usual way. When there is no local copy, a notification says so. From a web editor the tab goes back to the folder view first, so the editor's lock on the file is released and the local copy opens writable.
 
 <p align="center"><img src="docs/images/hero.png" alt="The Files page of a Nextcloud server with Quarterly Report.docx selected, the extension's toolbar button highlighted, and the document open in a desktop window" width="100%"></p>
 
@@ -78,6 +78,7 @@ This project is not affiliated with, endorsed by or sponsored by Nextcloud GmbH.
 - **A browser in a sandbox**, such as a flatpak, probably cannot start the opener, which lives outside it. The installer still writes a manifest for flatpak Chromium; this is untested.
 - **Browsers.** The automated tests run in Chromium. Chrome and Edge read the same kind of manifest and the opener registers with both; they are not part of the automated tests.
 - **The desktop client's configuration** is parsed according to the layout of `nextcloud.cfg` the client is known to write. How that layout varies between client versions is not verified; a different one makes the opener report that no account matches.
+- **Web editors lock the file.** A web editor that locks the file in Nextcloud, ONLYOFFICE does, makes the desktop client mark the synced copy read-only until the lock is gone. The extension leaves the editor and the opener waits for the copy to become writable. A file that another browser or person still has open in an editor opens read-only after the wait, and the notification says why. The desktop client restores write permission at its next sync. The extension's options page can turn the tab change off.
 - **The synced copy only.** A file that is not downloaded is never fetched; the extension says so instead.
 - **Address forms.** Only the Files app, permalinks and the OnlyOffice, Collabora and Text editor addresses are understood.
 

@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import { buildManifest } from '../src/manifest.ts';
 import { extensionIdFromKey } from './helpers/extension-id.ts';
-import { ask, makeSandbox, OPENER, type Sandbox, touch } from './helpers/opener.ts';
+import { ask, askAll, makeSandbox, OPENER, type Sandbox, touch } from './helpers/opener.ts';
 
 const sandboxes: Sandbox[] = [];
 function sandbox(configText?: string) {
@@ -130,6 +130,59 @@ describe('opener refusals', () => {
     touch(join(s.home, 'Nextcloud/a.txt'));
     const reply = await ask(request('/a.txt'), { ...s.env, NEXTCLOUD_OPEN_LOCAL_OPENER: 'false' });
     expect(reply).toMatchObject({ ok: false, code: 'launch-failed' });
+  });
+});
+
+describe('waiting for a web editor to release its lock', () => {
+  const locked = (s: Sandbox) => {
+    const file = join(s.home, 'Nextcloud/Docs/locked.docx');
+    touch(file);
+    chmodSync(file, 0o444);
+    return file;
+  };
+  const launches = (s: Sandbox) => (existsSync(s.opened) ? readFileSync(s.opened, 'utf8') : '');
+
+  test('launches once the read-only copy becomes writable, after reporting the wait', async () => {
+    const s = sandbox();
+    const file = locked(s);
+    setTimeout(() => chmodSync(file, 0o644), 1200);
+    const messages = await askAll(request('/Docs/locked.docx', { waitForWritable: true }), {
+      ...s.env,
+      NEXTCLOUD_OPEN_LOCAL_LOCK_WAIT: '15',
+    });
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({ status: 'waiting' });
+    expect(messages[1]).toEqual({ ok: true, localPath: file });
+    expect(launches(s).trim()).toBe(file);
+  });
+
+  test('launches anyway at the deadline and says it opened read-only', async () => {
+    const s = sandbox();
+    const file = locked(s);
+    const messages = await askAll(request('/Docs/locked.docx', { waitForWritable: true }), {
+      ...s.env,
+      NEXTCLOUD_OPEN_LOCAL_LOCK_WAIT: '1',
+    });
+    expect(messages[0]).toMatchObject({ status: 'waiting' });
+    expect(messages[1]).toMatchObject({ ok: true, localPath: file, readOnly: true });
+    expect((messages[1] as { message: string }).message).toContain('read-only');
+    expect(launches(s).trim()).toBe(file);
+    expect((await Bun.file(file).stat()).mode & 0o222).toBe(0);
+  });
+
+  test('a writable file is launched at once without any waiting message', async () => {
+    const s = sandbox();
+    touch(join(s.home, 'Nextcloud/Docs/free.docx'));
+    const messages = await askAll(request('/Docs/free.docx', { waitForWritable: true }), s.env);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ ok: true });
+  });
+
+  test('a read-only file is not waited for when the request did not leave an editor', async () => {
+    const s = sandbox();
+    const file = locked(s);
+    const messages = await askAll(request('/Docs/locked.docx'), s.env);
+    expect(messages).toEqual([{ ok: true, localPath: file }]);
   });
 });
 

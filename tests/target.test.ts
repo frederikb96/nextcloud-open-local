@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parsePageUrl } from '../src/target.ts';
+import { folderViewUrl, type PageTarget, parsePageUrl } from '../src/target.ts';
 
 describe('parsePageUrl', () => {
   test('reads the file id and folder of a Files app address', () => {
@@ -10,6 +10,7 @@ describe('parsePageUrl', () => {
       basePath: '',
       fileId: '4711',
       dir: '/Docs x',
+      editor: true,
     });
   });
 
@@ -43,5 +44,40 @@ describe('parsePageUrl', () => {
     expect(parsePageUrl('https://h.example/apps/calendar/')).toBeNull();
     expect(parsePageUrl('chrome://extensions')).toBeNull();
     expect(parsePageUrl('not a url')).toBeNull();
+  });
+});
+
+describe('editor pages', () => {
+  test('a plain Files listing is not an editor, openfile makes it one', () => {
+    expect(parsePageUrl('https://h.example/apps/files/files/7?dir=/a')).toMatchObject({
+      editor: false,
+    });
+    expect(parsePageUrl('https://h.example/apps/files/files/7?dir=/a&openfile=true')).toMatchObject(
+      { editor: true },
+    );
+    expect(
+      parsePageUrl('https://h.example/apps/files/files/7?dir=/a&openfile=false'),
+    ).toMatchObject({ editor: false });
+  });
+
+  test('permalinks and editor apps are editors', () => {
+    expect(parsePageUrl('https://h.example/f/12')).toMatchObject({ editor: true });
+    expect(parsePageUrl('https://h.example/apps/richdocuments/34')).toMatchObject({ editor: true });
+  });
+});
+
+describe('folderViewUrl', () => {
+  const target = parsePageUrl('https://h.example/nextcloud/f/12') as PageTarget;
+
+  test('selects the file inside its folder without opening it', () => {
+    expect(folderViewUrl(target, '/Docs x/a.docx')).toBe(
+      'https://h.example/nextcloud/apps/files/files/12?dir=%2FDocs%20x',
+    );
+  });
+
+  test('uses the root for a file at the top', () => {
+    expect(folderViewUrl(target, '/a.docx')).toBe(
+      'https://h.example/nextcloud/apps/files/files/12?dir=%2F',
+    );
   });
 });

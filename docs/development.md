@@ -21,7 +21,7 @@ bun run package       # nextcloud-open-local.zip of dist/
 - **The browser test** (`bun run test:e2e`) loads the built extension into Playwright's bundled
   Chromium, resolves the Nextcloud host name to a local HTTPS server only, registers the real
   opener as native host in the test profile and replaces the desktop application with a stub that
-  records the path it receives. Branded Chrome and Edge ignore `--load-extension`, so only the
+  records the path it receives. It covers the click flow, the tab leaving a web editor, the option, and a locked copy that is released while the opener waits. Branded Chrome and Edge ignore `--load-extension`, so only the
   bundled Chromium runs it; install it with `bunx playwright-core install chromium` if it is
   missing, or point `CHROMIUM_PATH` at another build.
 - **Documentation guards** fail when a fact stated in the docs and in the code diverge: every
